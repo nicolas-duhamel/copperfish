@@ -1,0 +1,8 @@
+[package]
+name = "copperfish"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+crabchess = "0.1.15"
+rand = "0.9"
