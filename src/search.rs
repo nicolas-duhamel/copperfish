@@ -57,8 +57,10 @@ pub fn mtdf(
         );
         guess = eval;
         if guess < beta {
+            // fail low
             upper_bound = guess;
         } else {
+            // fail high
             lower_bound = guess;
         }
     }
@@ -90,7 +92,9 @@ fn minimax(
     }
 
     let hash = zob.hash_position(position, turn);
+    let mut tt_move = None;
     if let Some(entry) = tt.get(&hash) {
+        tt_move = entry.best_move;
         if entry.depth >= depth {
             match entry.bound {
                 Bound::Exact => return (entry.best_move, entry.value),
@@ -129,7 +133,7 @@ fn minimax(
         return (None, eval);
     }
 
-    let moves = generate_legal_moves(&position, turn, &killer_moves[depth as usize]);
+    let moves = generate_legal_moves(&position, turn, tt_move, &killer_moves[depth as usize]);
 
     if maximizing {
         let mut max_eval = i32::MIN;

@@ -4,6 +4,7 @@ use crabchess::prelude::*;
 pub fn generate_legal_moves(
     pos: &ChessPosition,
     turn: Color,
+    tt_move: Option<Move>,
     killer: &[Option<Move>; 2],
 ) -> Vec<Move> {
     // gather pseudo-legal candidates
@@ -64,7 +65,7 @@ pub fn generate_legal_moves(
         }
     }
 
-    legal.sort_by_key(|mv| std::cmp::Reverse(move_score(pos, mv, killer)));
+    legal.sort_by_key(|mv| std::cmp::Reverse(move_score(pos, mv, tt_move, killer)));
 
     legal
 }
@@ -97,7 +98,16 @@ fn piece_to_index(piece: Type) -> usize {
     }
 }
 
-fn move_score(pos: &ChessPosition, mv: &Move, killer: &[Option<Move>; 2]) -> u8 {
+fn move_score(
+    pos: &ChessPosition,
+    mv: &Move,
+    tt_move: Option<Move>,
+    killer: &[Option<Move>; 2],
+) -> u8 {
+    if tt_move == Some(*mv) {
+        return 200; // highest priority to TT move
+    }
+
     if killer[0] == Some(*mv) || killer[1] == Some(*mv) {
         return 100; // killer move bonus
     }
