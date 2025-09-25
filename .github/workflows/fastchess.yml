@@ -1,0 +1,71 @@
+name: FastChess Match
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  fastchess-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout repository
+      - name: Checkout current commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # Needed for previous commit
+
+      # Install Rust
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      # Build current Copperfish
+      - name: Build current Copperfish
+        run: cargo build --release
+      - name: Copy current binary
+        run: cp target/release/copperfish copperfish-current
+
+      # Checkout previous commit and build
+      - name: Checkout previous commit
+        run: git checkout HEAD~1
+      - name: Build previous Copperfish
+        run: cargo build --release
+      - name: Copy previous binary
+        run: cp target/release/copperfish copperfish-prev
+
+      # Download and install fastchess
+      - name: Install fastchess
+        run: |
+          wget -q https://github.com/Disservin/fastchess/releases/download/v1.6.0-alpha/fastchess-linux-x86-64.tar
+          tar -xf fastchess-linux-x86-64.tar
+          chmod +x fastchess-linux-x86-64/fastchess
+          cp fastchess-linux-x86-64/fastchess .
+          cp fastchess-linux-x86-64/app/tests/data/openings.pgn .
+          ls -al
+
+      # Run a fastchess match with PGN output
+      - name: Run match Copperfish HEAD vs previous
+        run: |
+          ./fastchess \
+            -engine cmd=./copperfish-current name=Current \
+            -engine cmd=./copperfish-prev name=Previous \
+            -each tc=10+5 \
+            -openings file=openings.pgn format=pgn order=random \
+            -srand $RANDOM \
+            -rounds 50 \
+            -concurrency 2 \
+            -log file=fastchess.log \
+            -pgnout match.pgn
+          cat fastchess.log
+
+      # Upload PGN as artifact
+      - name: Upload PGN artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: copperfish-fastchess-pgn
+          path: match.pgn
