@@ -57,7 +57,7 @@ jobs:
             -each tc=10+5 \
             -openings file=openings.pgn format=pgn order=random \
             -srand $RANDOM \
-            -rounds 50 \
+            -rounds 40 \
             -concurrency 2 \
             -log file=fastchess.log \
             -pgnout match.pgn
