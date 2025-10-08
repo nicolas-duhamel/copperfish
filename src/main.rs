@@ -63,11 +63,20 @@ fn main() {
                 let best_move = search_with_time(
                     position.clone(),
                     turn,
-                    Duration::from_millis(4900),
+                    Duration::from_millis(2990),
                     Arc::clone(&zobrist),
                     Arc::clone(&tt),
                 );
-                println!("bestmove {}", best_move.unwrap().uci());
+                if let Some(best_move) = best_move {
+                    println!("bestmove {}", best_move.uci());
+                } else {
+                    let hash = zobrist.lock().unwrap().hash_position(&position, turn);
+                    if let Some(entry) = tt.lock().unwrap().get(&hash) {
+                        println!("bestmove {}", entry.best_move.unwrap().uci());
+                    } else {
+                        println!("info string No legal moves found");
+                    };
+                }
             }
             Some("quit") => {
                 break;
@@ -79,7 +88,7 @@ fn main() {
 }
 
 fn search_with_time(
-    pos: ChessPosition,
+    position: ChessPosition,
     turn: Color,
     max_time: Duration,
     zob: Arc<Mutex<Zobrist>>,
@@ -95,15 +104,22 @@ fn search_with_time(
 
     // Spawn search thread
     thread::spawn(move || {
-        let mut guess = evaluate(&pos); // initial guess
-        for depth in (1..MAX_DEPTH).step_by(2) {
-            let mut tt = tt_clone.lock().unwrap();
-            let mut zob = zob_clone.lock().unwrap();
-            let (mv, score) = mtdf(
-                &pos,
+        let mut tt = tt_clone.lock().unwrap();
+        let mut zob = zob_clone.lock().unwrap();
+        let hash = zob.hash_position(&position, turn);
+        let (mut guess, depth_start) = if let Some(entry) = tt.get(&hash) {
+            (entry.value, entry.depth.max(3) - 2)
+        } else {
+            (evaluate(&position), 1)
+        };
+
+        for depth in (depth_start..MAX_DEPTH).step_by(2) {
+            let (mv, score) = aspiration_search(
+                &position,
                 turn,
                 guess,
                 depth,
+                25,
                 &mut tt,
                 &mut zob,
                 &stop_flag_clone,
@@ -115,28 +131,24 @@ fn search_with_time(
 
             *best_move_clone.lock().unwrap() = Some(mv);
             guess = score;
-            if score.abs() > i32::MAX - MAX_DEPTH as i32 {
-                let sign = if score > 0 && turn == Color::White {
-                    1
-                } else {
-                    -1
-                };
+            let sign = if turn == Color::White { 1 } else { -1 };
+            if score.abs() > WHITE_MATE - MAX_DEPTH as i32 {
                 println!(
                     "info depth {} score mate {}",
                     depth,
-                    sign * (i32::MAX - score.abs())
+                    sign * (WHITE_MATE - score.abs() + 1)
                 );
                 stop_flag_clone.store(true, Ordering::Relaxed); // forced mate found, stop search
                 break;
             }
-            println!("info depth {} score cp {}", depth, score);
+            println!("info depth {} score cp {}", depth, sign * score);
         }
     });
 
     // Main thread: monitor time
     let start = Instant::now();
-    while start.elapsed() < max_time {
-        thread::sleep(Duration::from_millis(100));
+    while start.elapsed() < max_time && !stop_flag.load(Ordering::Relaxed) {
+        thread::sleep(Duration::from_millis(10));
     }
     stop_flag.store(true, Ordering::Relaxed); // signal thread to stop
 

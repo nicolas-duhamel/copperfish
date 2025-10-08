@@ -1,4 +1,4 @@
-name: FastChess Match
+name: Match vs Previous Commit
 
 on:
   push:
@@ -45,8 +45,13 @@ jobs:
           tar -xf fastchess-linux-x86-64.tar
           chmod +x fastchess-linux-x86-64/fastchess
           cp fastchess-linux-x86-64/fastchess .
-          cp fastchess-linux-x86-64/app/tests/data/openings.pgn .
           ls -al
+
+      # Download opening book
+      - name: Download opening book
+        run: |
+          wget -q https://github.com/official-stockfish/books/raw/refs/heads/master/8moves_v3.pgn.zip
+          unzip 8moves_v3.pgn.zip
 
       # Run a fastchess match with PGN output
       - name: Run match Copperfish HEAD vs previous
@@ -54,10 +59,10 @@ jobs:
           ./fastchess \
             -engine cmd=./copperfish-current name=Current \
             -engine cmd=./copperfish-prev name=Previous \
-            -each tc=10+5 \
-            -openings file=openings.pgn format=pgn order=random \
+            -each tc=0+3 \
+            -openings file=8moves_v3.pgn format=pgn order=random \
             -srand $RANDOM \
-            -rounds 40 \
+            -rounds 60 \
             -concurrency 2 \
             -log file=fastchess.log \
             -pgnout match.pgn

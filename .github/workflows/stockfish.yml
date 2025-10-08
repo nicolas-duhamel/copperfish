@@ -1,0 +1,78 @@
+name: Stockfish Match
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  stockfish-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout repository
+      - name: Checkout current commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # Needed for previous commit
+
+      # Install Rust
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      # Build current Copperfish
+      - name: Build current Copperfish
+        run: cargo build --release
+      - name: Copy current binary
+        run: cp target/release/copperfish copperfish
+
+      # Download and install fastchess
+      - name: Download stockfish
+        run: |
+          wget -q https://github.com/official-stockfish/Stockfish/releases/download/sf_17.1/stockfish-ubuntu-x86-64.tar
+          tar -xf stockfish-ubuntu-x86-64.tar
+          cp stockfish/stockfish-ubuntu-x86-64 stockfish17
+          chmod +x stockfish17
+
+      # Download and install fastchess
+      - name: Install fastchess
+        run: |
+          wget -q https://github.com/Disservin/fastchess/releases/download/v1.6.0-alpha/fastchess-linux-x86-64.tar
+          tar -xf fastchess-linux-x86-64.tar
+          chmod +x fastchess-linux-x86-64/fastchess
+          cp fastchess-linux-x86-64/fastchess .
+          cp fastchess-linux-x86-64/app/tests/data/openings.pgn .
+          ls -al
+
+      # Download opening book
+      - name: Download opening book
+        run: |
+          wget -q https://github.com/official-stockfish/books/raw/refs/heads/master/8moves_v3.pgn.zip
+          unzip 8moves_v3.pgn.zip
+
+      # Run a fastchess match with PGN output
+      - name: Run match Copperfish vs Stockfish
+        run: |
+          ./fastchess \
+            -engine cmd=./copperfish name=Copperfish \
+            -engine cmd=./stockfish17 name=Stockfish \
+            option.UCI_LimitStrength=true option.UCI_Elo=1600 \
+            -each tc=0+3 \
+            -openings file=8moves_v3.pgn format=pgn order=random \
+            -srand $RANDOM \
+            -rounds 60 \
+            -concurrency 2 \
+            -log file=fastchess.log \
+            -pgnout match.pgn
+           cat fastchess.log
+
+      # Upload PGN as artifact
+      - name: Upload PGN artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: copperfish-fastchess-pgn
+          path: match.pgn

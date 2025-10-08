@@ -1,6 +1,34 @@
 use crate::eval::SquareIdx;
 use crabchess::prelude::*;
 
+pub fn generate_captures(pos: &ChessPosition, turn: Color) -> Vec<Move> {
+    let mut captures = Vec::new();
+
+    for &file in File::all().iter() {
+        for &rank in Rank::all().iter() {
+            let sq = Square(file, rank);
+            for mv in pos.pseudolegal_threats(sq, turn.other()) {
+                if !mv.is_legal(pos).unwrap_or(false) {
+                    continue;
+                }
+                match mv {
+                    Move::Standard { final_square, .. } if pos.get(final_square).is_none() => {
+                        continue
+                    }
+                    Move::PawnPromotion { final_square, .. } if pos.get(final_square).is_none() => {
+                        continue
+                    }
+                    Move::Castle { .. } => continue,
+                    _ => {}
+                }
+                captures.push(mv);
+            }
+        }
+    }
+
+    captures
+}
+
 pub fn generate_legal_moves(
     pos: &ChessPosition,
     turn: Color,
